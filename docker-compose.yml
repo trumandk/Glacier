@@ -1,0 +1,9 @@
+version: "3.2"
+services:
+ blobdb:
+    build: .
+    network_mode: host
+    volumes:
+    - /files/:/files/
+    environment:
+      DISK_USAGE_ALLOWED: 99
