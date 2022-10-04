@@ -1,6 +1,4 @@
 all:
-	go fmt main.go
-#	go run main.go
 	docker-compose build
 	docker-compose up
 
