@@ -15,6 +15,7 @@ Pros
 - Unlimited numbers of blobs
 - The number of files on disk is always known(maximum 256 Tar archives per hour)
 - Build in prometheus support.
+- Build in ACME support.
 
 Cons
 - Not possible to delete or overwrite single blob, it must age-off.
@@ -22,8 +23,5 @@ Cons
 
 ## Ongoing work
 - S3 support
-- Support for ACME
-- Time to live guarantee
 - Blob encryption
 - Blob metadata
-- Blob compression
