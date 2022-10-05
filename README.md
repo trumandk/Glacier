@@ -16,7 +16,7 @@ Pros
 - Build in ACME support.
 
 Cons
-- Not possible to delete or overwrite single blob, it must age-off.
+- Not possible to delete or overwrite single blob, it must age-off. (Data is frozen within the glacier)
 - Only accept Time-UUID as identifiers.
 
 Ongoing work
