@@ -1,4 +1,3 @@
-// `net/http` package.
 package main
 
 import (
@@ -9,6 +8,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"github.com/caddyserver/certmagic"
+	"github.com/gabriel-vasile/mimetype"
+	"github.com/gofrs/flock"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/shirou/gopsutil/disk"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -18,15 +27,6 @@ import (
 	"regexp"
 	"strconv"
 	"time"
-
-	"github.com/gabriel-vasile/mimetype"
-	"github.com/gofrs/flock"
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/shirou/gopsutil/disk"
 )
 
 const (
@@ -616,5 +616,14 @@ func main() {
 	r.HandleFunc("/redirect", redirect)
 
 	r.Handle("/metrics", promhttp.Handler())
-	http.ListenAndServe(":8000", r)
+	server_domain := os.Getenv("SERVER_DOMAIN")
+	acme_server := os.Getenv("ACME_SERVER")
+
+	if len(server_domain) > 0 && len(acme_server) > 0 {
+		certmagic.DefaultACME.Agreed = true
+		certmagic.DefaultACME.CA = acme_server
+		log.Fatal(certmagic.HTTPS([]string{server_domain}, r))
+	} else {
+		http.ListenAndServe(":8000", r)
+	}
 }
