@@ -6,6 +6,9 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 RUN go mod download
 
+COPY config/ config/
+COPY autoclean/ autoclean/
+COPY prometheus/ prometheus/
 COPY do_not_compress.go do_not_compress.go
 COPY main.go main.go
 RUN CGO_ENABLED=0 go build -o /main
