@@ -429,7 +429,7 @@ func FileView(next http.Handler) http.Handler {
 	})
 }
 
-func main() {
+func InitServer() (*mux.Router) {
 	config.Settings.Init()
 	pcapDetector := func(raw []byte, limit uint32) bool {
 		return bytes.HasPrefix(raw, []byte("\xd4\xc3\xb2\xa1"))
@@ -443,10 +443,8 @@ func main() {
 	err := os.MkdirAll(config.Settings.Get(config.DATA_FOLDER), 0700)
 	if err != nil {
 		fmt.Println(err)
-		return
+		log.Fatal("Panic unable to create folder:", config.Settings.Get(config.DATA_FOLDER))
 	}
-	go autoclean.AutoClean()
-	go prometheus.SystemStat()
 	r := mux.NewRouter()
 	filesfs := http.StripPrefix("/files/", http.FileServer(http.Dir(config.Settings.Get(config.DATA_FOLDER))))
 	r.PathPrefix("/files/").Handler(FileView(filesfs))
@@ -464,6 +462,13 @@ func main() {
 	r.HandleFunc("/redirect", redirect)
 
 	r.Handle("/metrics", promhttp.Handler())
+	return r
+}
+
+func main() {
+	r := InitServer()
+	go autoclean.AutoClean()
+	go prometheus.SystemStat()
 
 	if config.Settings.Has(config.SERVER_DOMAIN) && config.Settings.Has(config.ACME_SERVER) {
 		certmagic.DefaultACME.Agreed = true

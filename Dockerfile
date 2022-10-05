@@ -10,7 +10,9 @@ COPY config/ config/
 COPY autoclean/ autoclean/
 COPY prometheus/ prometheus/
 COPY do_not_compress.go do_not_compress.go
+COPY main_test.go main_test.go
 COPY main.go main.go
+RUN CGO_ENABLED=0 go test
 RUN CGO_ENABLED=0 go build -o /main
 RUN chmod 777 /main
 
