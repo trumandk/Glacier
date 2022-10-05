@@ -27,23 +27,13 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+	"glacier/config"
 )
 
 const (
 	DataFolder = "/files"
 )
 
-func getExtendLifeSupport() bool {
-	extendLifeSupport, err := strconv.ParseBool(os.Getenv("EXTEND_LIFE_SUPPORT"))
-	if err != nil {
-		extendLifeSupport = false
-	}
-
-	fmt.Println("EXTEND_LIFE_SUPPORT:", extendLifeSupport)
-	return extendLifeSupport
-}
-
-var ExtendLifeSupport = getExtendLifeSupport()
 
 func getDiskUsageAllowed() float64 {
 	allowedDiskEnv, err := strconv.ParseFloat(os.Getenv("DISK_USAGE_ALLOWED"), 64)
@@ -130,7 +120,7 @@ func getContainerFile(uuidString string) (string, string, error) {
 		fmt.Println("strconv.ParseUint:", err)
 	}
 	//fmt.Println("uint8:", uint8(keep))
-	if ExtendLifeSupport && uint8(keep)&0x80 == 0x80 {
+	if config.Settings.Get(config.EXTEND_LIFE_SUPPORT) == "true" && uint8(keep)&0x80 == 0x80 {
 		keep = uint64(uint8(keep) & 0x7f)
 		TimeLayout := "20060102"
 		timestamp, err := time.Parse(TimeLayout, timeUuid[0:8])
@@ -583,6 +573,7 @@ func autoClean() {
 }
 
 func main() {
+	config.Settings.Init()
 	pcapDetector := func(raw []byte, limit uint32) bool {
 		return bytes.HasPrefix(raw, []byte("\xd4\xc3\xb2\xa1"))
 	}
@@ -616,13 +607,11 @@ func main() {
 	r.HandleFunc("/redirect", redirect)
 
 	r.Handle("/metrics", promhttp.Handler())
-	server_domain := os.Getenv("SERVER_DOMAIN")
-	acme_server := os.Getenv("ACME_SERVER")
 
-	if len(server_domain) > 0 && len(acme_server) > 0 {
+	if config.Settings.Has(config.SERVER_DOMAIN) && config.Settings.Has(config.ACME_SERVER) {
 		certmagic.DefaultACME.Agreed = true
-		certmagic.DefaultACME.CA = acme_server
-		log.Fatal(certmagic.HTTPS([]string{server_domain}, r))
+		certmagic.DefaultACME.CA = config.Settings.Get(config.ACME_SERVER)
+		log.Fatal(certmagic.HTTPS([]string{config.Settings.Get(config.SERVER_DOMAIN)}, r))
 	} else {
 		http.ListenAndServe(":8000", r)
 	}
