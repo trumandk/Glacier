@@ -1,6 +1,6 @@
 version: "3.2"
 services:
- blobdb:
+ glacier:
     build: .
     network_mode: host
     volumes:

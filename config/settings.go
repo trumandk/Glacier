@@ -38,6 +38,7 @@ const (
 	SERVER_DOMAIN = "SERVER_DOMAIN"
 	DISK_USAGE_ALLOWED = "DISK_USAGE_ALLOWED"
 	EXTEND_LIFE_SUPPORT = "EXTEND_LIFE_SUPPORT"
+	DATA_FOLDER = "DATA_FOLDER"
 )
 
 func (s *SettingsType) Init() {
@@ -45,6 +46,7 @@ func (s *SettingsType) Init() {
 	s.Set(SERVER_DOMAIN, "server domain name","")
 	s.Set(DISK_USAGE_ALLOWED, "Allowed disk usage in percentage","75")
 	s.Set(EXTEND_LIFE_SUPPORT, "Enable extended life support","false")
+	s.Set(DATA_FOLDER, "data folder","/files")
 
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetAutoWrapText(false)

@@ -14,10 +14,7 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/shirou/gopsutil/disk"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -28,13 +25,10 @@ import (
 	"strconv"
 	"time"
 	"glacier/config"
+	"glacier/autoclean"
+	"glacier/prometheus"
 )
-
-const (
-	DataFolder = "/files"
-)
-
-
+/*
 func getDiskUsageAllowed() float64 {
 	allowedDiskEnv, err := strconv.ParseFloat(os.Getenv("DISK_USAGE_ALLOWED"), 64)
 	if err != nil {
@@ -49,7 +43,7 @@ func getDiskUsageAllowed() float64 {
 }
 
 var DiskUsageAllowed = getDiskUsageAllowed()
-
+*/
 func ExtractGUID() *regexp.Regexp {
 	r, err := regexp.Compile("(20[0-9]{6}-[0-9]{2}[a-f0-9]{2}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})")
 	if err != nil {
@@ -60,44 +54,7 @@ func ExtractGUID() *regexp.Regexp {
 
 var extractGUID = ExtractGUID()
 
-func ExtractDateFromFolder() *regexp.Regexp {
-	r, err := regexp.Compile("([0-9]{4}/[0-9]{2}/[0-9]{2}/[0-9]{2})")
-	if err != nil {
-		panic(err)
-	}
-	return r
-}
-
-var extractDateFromFolder = ExtractDateFromFolder()
-
 var ctx = context.Background()
-
-var (
-	rawUploadProcessed = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "rawupload_processed_total",
-		Help: "The total number of rawupload events",
-	})
-	rawUploadDoneProcessed = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "rawupload_processed_total_done",
-		Help: "The total number of rawupload events done",
-	})
-	disk_free = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "disk_free",
-		Help: "The total number of rawupload events done",
-	})
-	disk_used_percent = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "disk_used_percent",
-		Help: "The total number of rawupload events done",
-	})
-	tar_files_open = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "tar_files_open",
-		Help: "The total number of rawupload events done",
-	})
-	current_data_window_in_hours = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "current_data_window_in_hours",
-		Help: "Current data time-windows in hours",
-	})
-)
 
 func getContainerFile(uuidString string) (string, string, error) {
 	timeUuid := extractGUID.FindString(uuidString)
@@ -289,8 +246,8 @@ func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 	}
 	defer fileLock.Unlock()
 
-	tar_files_open.Inc()
-	defer tar_files_open.Dec()
+	prometheus.Tar_files_open.Inc()
+	defer prometheus.Tar_files_open.Dec()
 
 	f, err := os.OpenFile(containerFile, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil {
@@ -354,13 +311,13 @@ func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	rawUploadDoneProcessed.Inc()
+	prometheus.RawUploadDoneProcessed.Inc()
 	fmt.Fprintf(w, "<html><a href=get/%v>%v</a> <br><a href=%v>%v</a>", id, id, containerFile, containerFile)
 
 }
 
 func rawUpload(w http.ResponseWriter, r *http.Request) {
-	rawUploadProcessed.Inc()
+	prometheus.RawUploadProcessed.Inc()
 	vars := mux.Vars(r)
 	id, ok := vars["id"]
 	if !ok {
@@ -472,106 +429,6 @@ func FileView(next http.Handler) http.Handler {
 	})
 }
 
-func systemStat() {
-	for {
-		usageStat, err := disk.UsageWithContext(ctx, "./files")
-		if err == nil {
-			disk_used_percent.Set(float64(usageStat.UsedPercent))
-			disk_free.Set(float64(usageStat.Free))
-		}
-
-		time.Sleep(1000 * time.Millisecond)
-	}
-}
-
-var current_data_time_window_function = func(pathX string, infoX os.DirEntry, errX error) error {
-
-	if errX != nil {
-		fmt.Printf("current_data_time_window_function: error 「%v」 at a path 「%q」\n", errX, pathX)
-		return errX
-	}
-
-	if !infoX.IsDir() {
-		if filepath.Ext(pathX) == ".tar" {
-			myDate, err := time.Parse("2006/01/02/15", extractDateFromFolder.FindString(pathX))
-			if err != nil {
-				fmt.Println("Error-current_data_time_window_function:", err)
-				return errors.New("STOP")
-			}
-			current_data_window_in_hours.Set(time.Since(myDate).Hours())
-			return errors.New("STOP")
-		}
-	}
-
-	return nil
-}
-
-var autoCleanFunction = func(pathX string, infoX os.DirEntry, errX error) error {
-	usageStat, err := disk.UsageWithContext(ctx, DataFolder)
-	if err != nil {
-		fmt.Println("Panic! Disk usage not working err:", err)
-		return filepath.SkipDir
-	}
-
-	if usageStat.UsedPercent < DiskUsageAllowed {
-		return filepath.SkipDir
-	}
-
-	if errX != nil {
-		fmt.Printf("autoCleanFunction: error 「%v」 at a path 「%q」\n", errX, pathX)
-		return errX
-	}
-
-	if !infoX.IsDir() {
-		if filepath.Ext(pathX) == ".tar" {
-			fileLock := flock.New(pathX)
-			locked, err := fileLock.TryLockContext(ctx, 500*time.Millisecond)
-			if err != nil {
-				fmt.Println("lock timeout:", err)
-				return filepath.SkipDir
-			}
-			if !locked {
-				fmt.Println("file not locked:")
-				return filepath.SkipDir
-			}
-			defer fileLock.Unlock()
-
-			err = os.Remove(pathX)
-			fmt.Printf("AutoDelete: %v DeleteWhen: %v<%v\r\n", pathX, usageStat.UsedPercent, DiskUsageAllowed)
-			if err != nil {
-				fmt.Println("Remove file error: ", err)
-			}
-
-		}
-	}
-
-	return nil
-}
-
-func autoClean() {
-
-	for {
-		filepath.WalkDir(DataFolder, current_data_time_window_function)
-		time.Sleep(10000 * time.Millisecond)
-		usageStat, err := disk.UsageWithContext(ctx, DataFolder)
-		if err != nil {
-			fmt.Println("Panic! Disk usage not working err:", err)
-		}
-
-		if usageStat.UsedPercent > DiskUsageAllowed {
-			fmt.Println("Start autoClean:", usageStat.UsedPercent)
-			fmt.Printf("Start AutoClean DeleteWhen: %v<%v\r\n", usageStat.UsedPercent, DiskUsageAllowed)
-			err := filepath.WalkDir(DataFolder, autoCleanFunction)
-
-			if err != nil {
-				fmt.Printf("error walking the path %q: %v\n", DataFolder, err)
-			}
-		}
-
-	}
-
-}
-
 func main() {
 	config.Settings.Init()
 	pcapDetector := func(raw []byte, limit uint32) bool {
@@ -583,15 +440,15 @@ func main() {
 	}
 	mimetype.Extend(pcapngDetector, "application/x-pcapng", ".pcapng")
 
-	err := os.MkdirAll(DataFolder, 0700)
+	err := os.MkdirAll(config.Settings.Get(config.DATA_FOLDER), 0700)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	go autoClean()
-	go systemStat()
+	go autoclean.AutoClean()
+	go prometheus.SystemStat()
 	r := mux.NewRouter()
-	filesfs := http.StripPrefix("/files/", http.FileServer(http.Dir("/files")))
+	filesfs := http.StripPrefix("/files/", http.FileServer(http.Dir(config.Settings.Get(config.DATA_FOLDER))))
 	r.PathPrefix("/files/").Handler(FileView(filesfs))
 	staticfs := http.StripPrefix("/static/", http.FileServer(http.Dir("/static")))
 	r.PathPrefix("/static/").Handler(FileView(staticfs))
