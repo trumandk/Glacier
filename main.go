@@ -5,18 +5,24 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
-	"log"
 	"github.com/caddyserver/certmagic"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"glacier/autoclean"
+	"glacier/config"
+	"glacier/prometheus"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -24,26 +30,8 @@ import (
 	"regexp"
 	"strconv"
 	"time"
-	"glacier/config"
-	"glacier/autoclean"
-	"glacier/prometheus"
 )
-/*
-func getDiskUsageAllowed() float64 {
-	allowedDiskEnv, err := strconv.ParseFloat(os.Getenv("DISK_USAGE_ALLOWED"), 64)
-	if err != nil {
-		allowedDiskEnv = 75
-	}
-	if allowedDiskEnv < 5 || allowedDiskEnv > 99 {
-		fmt.Println("Panic! DISK_USAGE_ALLOWED not accepted. Only 5-99 is allowed")
-		allowedDiskEnv = 75
-	}
-	fmt.Println("DISK_USAGE_ALLOWED:", allowedDiskEnv, "%")
-	return allowedDiskEnv
-}
 
-var DiskUsageAllowed = getDiskUsageAllowed()
-*/
 func ExtractGUID() *regexp.Regexp {
 	r, err := regexp.Compile("(20[0-9]{6}-[0-9]{2}[a-f0-9]{2}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})")
 	if err != nil {
@@ -93,6 +81,29 @@ func getContainerFile(uuidString string) (string, string, error) {
 		return "files/" + timeUuid[0:4] + "/" + timeUuid[4:6] + "/" + timeUuid[6:8] + "/" + timeUuid[9:11] + "/" + timeUuid[34:36] + ".tar", timeUuid, err
 	}
 
+}
+
+func getFileTime(uuidString string) time.Time {
+	timeUuid := extractGUID.FindString(uuidString)
+	id, err := uuid.Parse(timeUuid)
+
+	if err != nil {
+		return time.Now()
+	}
+
+	if id.Version() != 4 {
+		return time.Now()
+	}
+	if timeUuid[0:2] != "20" {
+		return time.Now()
+	}
+
+	TimeLayout := "20060102"
+	timestamp, err := time.Parse(TimeLayout, timeUuid[0:8])
+	if err != nil {
+		return time.Now()
+	}
+	return timestamp
 }
 
 func getFile(w http.ResponseWriter, r *http.Request) {
@@ -177,13 +188,13 @@ func getFile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes []byte) {
+func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes []byte) (string, string) {
 	containerFile, uuid_id, err := getContainerFile(id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintln(w, err)
 		fmt.Println(err)
-		return
+		return "", ""
 	}
 	containerPath := filepath.Dir(containerFile)
 
@@ -192,14 +203,14 @@ func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Println(err)
-		return
+		return "", ""
 	}
 
 	if len(fileBytes) == 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintln(w, "FileSize==0")
 		fmt.Println("FileSize==0")
-		return
+		return "", ""
 	}
 	mtype := mimetype.Detect(fileBytes)
 	doCompress := false
@@ -221,13 +232,13 @@ func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintln(w, err)
-			return
+			return "", ""
 		}
 		if err := gw.Close(); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintln(w, err)
 			fmt.Println("compress close failed:", err)
-			return
+			return "", ""
 		}
 	}
 
@@ -237,12 +248,12 @@ func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintln(w, err)
 		fmt.Println("lock timeout:", err)
-		return
+		return "", ""
 	}
 	if !locked {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Println("file not locked:")
-		return
+		return "", ""
 	}
 	defer fileLock.Unlock()
 
@@ -253,7 +264,7 @@ func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintln(w, err)
-		return
+		return "", ""
 	}
 	defer f.Close()
 	if _, err = f.Seek(-2<<9, os.SEEK_END); err != nil {
@@ -274,13 +285,13 @@ func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 		if err := tw.WriteHeader(hdr); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintln(w, err)
-			return
+			return "", ""
 		}
 
 		if _, err := tw.Write(fileBytes); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintln(w, err)
-			return
+			return "", ""
 		}
 	} else {
 		hdr := &tar.Header{
@@ -296,24 +307,24 @@ func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 		if err := tw.WriteHeader(hdr); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintln(w, err)
-			return
+			return "", ""
 		}
 		if _, err := io.Copy(tw, &output); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintln(w, err)
-			return
+			return "", ""
 		}
 	}
 
 	if err := tw.Close(); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintln(w, err)
-		return
+		return "", ""
 	}
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusOK)
 	prometheus.RawUploadDoneProcessed.Inc()
-	fmt.Fprintf(w, "<html><a href=get/%v>%v</a> <br><a href=%v>%v</a>", id, id, containerFile, containerFile)
-
+	//	fmt.Fprintf(w, "<html><a href=get/%v>%v</a> <br><a href=%v>%v</a>", id, id, containerFile, containerFile)
+	return id, containerFile
 }
 
 func rawUpload(w http.ResponseWriter, r *http.Request) {
@@ -330,8 +341,43 @@ func rawUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
-	sharedUpload(w, r, id, fileBytes)
+	id, containerFile := sharedUpload(w, r, id, fileBytes)
+	fmt.Fprintf(w, "<html><a href=get/%v>%v</a> <br><a href=%v>%v</a>", id, id, containerFile, containerFile)
 
+}
+
+func formatHeaderTime(t time.Time) string {
+	tc := t.In(time.UTC)
+	return tc.Format("Mon, 02 Jan 2006 15:04:05") + " GMT"
+}
+
+func s3Put(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, ok := vars["id"]
+	if !ok {
+		fmt.Println("id is missing in parameters")
+	}
+	switch r.Method {
+	case "GET":
+		{
+			w.Header().Set("Last-Modified", formatHeaderTime(getFileTime(id)))
+			getFile(w, r)
+		}
+	case "PUT":
+		{
+			prometheus.RawUploadProcessed.Inc()
+			fileBytes, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				fmt.Fprintln(w, err)
+				return
+			}
+			defer r.Body.Close()
+			sharedUpload(w, r, id, fileBytes)
+			hash := md5.Sum(fileBytes)
+			w.Header().Set("ETag", `"`+hex.EncodeToString(hash[:])+`"`)
+		}
+	}
 }
 
 func uploadFile(w http.ResponseWriter, r *http.Request) {
@@ -349,7 +395,7 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	fileUUID := handler.Filename
 	generateNewUUID := r.URL.Query().Get("newuuid")
 	if generateNewUUID != "" {
-		fileUUID = generateTimeUUID()
+		fileUUID = GenerateTimeUUID()
 	}
 	fileBytes, err := ioutil.ReadAll(file)
 	if err != nil {
@@ -357,7 +403,8 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, err)
 		return
 	}
-	sharedUpload(w, r, fileUUID, fileBytes)
+	id, containerFile := sharedUpload(w, r, fileUUID, fileBytes)
+	fmt.Fprintf(w, "<html><a href=get/%v>%v</a> <br><a href=%v>%v</a>", id, id, containerFile, containerFile)
 }
 
 func redirect(w http.ResponseWriter, r *http.Request) {
@@ -370,7 +417,7 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Error Retrieving the File")
 }
 
-func generateTimeUUID() string {
+func GenerateTimeUUID() string {
 	id, _ := uuid.NewRandom()
 	timeStamp := time.Now()
 	idString := timeStamp.Format("20060102-1504") + id.String()[13:]
@@ -383,7 +430,7 @@ type MyUUID struct {
 }
 
 func uuidhello(w http.ResponseWriter, req *http.Request) {
-	idString := generateTimeUUID()
+	idString := GenerateTimeUUID()
 	containerFile, idString, _ := getContainerFile(idString)
 	myuuid := &MyUUID{Uuid: idString, ContainerFile: containerFile}
 	jData, err := json.Marshal(myuuid)
@@ -429,7 +476,7 @@ func FileView(next http.Handler) http.Handler {
 	})
 }
 
-func InitServer() (*mux.Router) {
+func InitServer() *mux.Router {
 	config.Settings.Init()
 	pcapDetector := func(raw []byte, limit uint32) bool {
 		return bytes.HasPrefix(raw, []byte("\xd4\xc3\xb2\xa1"))
@@ -452,10 +499,32 @@ func InitServer() (*mux.Router) {
 	r.PathPrefix("/static/").Handler(FileView(staticfs))
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		authorization := r.Header.Get("Authorization")
+
+		fmt.Println(authorization)
+		fmt.Println(r.URL)
+		fmt.Println(r)
+		for k, v := range r.Header {
+			fmt.Printf("%v: %v\n", k, v)
+		}
 		http.ServeFile(w, r, "/static/index.html")
+	})
+	r.HandleFunc("/data2/", func(w http.ResponseWriter, r *http.Request) {
+
+		authorization := r.Header.Get("Authorization")
+
+		fmt.Println(authorization)
+		fmt.Println(r.URL)
+		fmt.Println(r)
+		for k, v := range r.Header {
+			fmt.Printf("%v: %v\n", k, v)
+		}
 	})
 
 	r.HandleFunc("/uuid", uuidhello)
+	r.HandleFunc("/data/", s3Bucket)
+	r.HandleFunc("/data/{id}", s3Put)
 	r.HandleFunc("/upload", uploadFile)
 	r.HandleFunc("/rawupload/{id}", rawUpload)
 	r.HandleFunc("/get/{id}", getFile)
@@ -463,6 +532,29 @@ func InitServer() (*mux.Router) {
 
 	r.Handle("/metrics", promhttp.Handler())
 	return r
+}
+
+type GetBucketLocation struct {
+	XMLName            xml.Name `xml:"LocationConstraint"`
+	Xmlns              string   `xml:"xmlns,attr"`
+	LocationConstraint string   `xml:",chardata"`
+}
+
+func xmlEncoder(w http.ResponseWriter) *xml.Encoder {
+	w.Write([]byte(xml.Header))
+	w.Header().Set("Content-Type", "application/xml")
+
+	xe := xml.NewEncoder(w)
+	xe.Indent("", "  ")
+	return xe
+}
+
+func s3Bucket(w http.ResponseWriter, r *http.Request) {
+	result := GetBucketLocation{
+		Xmlns:              "http://s3.amazonaws.com/doc/2006-03-01/",
+		LocationConstraint: "",
+	}
+	xmlEncoder(w).Encode(result)
 }
 
 func main() {
