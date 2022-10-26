@@ -15,6 +15,8 @@ Pros
 - S3 support (Version 2 only)
 - Build in prometheus support.
 - Build in ACME support.
+- Support UUID version 4 with human readable timestamp(`YYYYMMDD-HHMM`) in the first two sections.
+- Support UUID version 1 according to RFC 4122
 
 Cons
 - Not possible to delete or overwrite single blob, it must age-off. (Data is frozen within the glacier)
