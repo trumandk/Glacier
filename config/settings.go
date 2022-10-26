@@ -39,6 +39,7 @@ const (
 	DISK_USAGE_ALLOWED = "DISK_USAGE_ALLOWED"
 	EXTEND_LIFE_SUPPORT = "EXTEND_LIFE_SUPPORT"
 	DATA_FOLDER = "DATA_FOLDER"
+	SERVER_PORT = "SERVER_PORT"
 )
 
 func (s *SettingsType) Init() {
@@ -47,6 +48,7 @@ func (s *SettingsType) Init() {
 	s.Set(DISK_USAGE_ALLOWED, "Allowed disk usage in percentage","75")
 	s.Set(EXTEND_LIFE_SUPPORT, "Enable extended life support","false")
 	s.Set(DATA_FOLDER, "data folder","/files")
+	s.Set(SERVER_PORT, "server tcp port","8000")
 
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetAutoWrapText(false)
