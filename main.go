@@ -33,7 +33,7 @@ import (
 )
 
 func ExtractGUID() *regexp.Regexp {
-	r, err := regexp.Compile("(20[0-9]{6}-[0-9]{2}[a-f0-9]{2}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})")
+	r, err := regexp.Compile("([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})")
 	if err != nil {
 		panic(err)
 	}
@@ -50,6 +50,13 @@ func getContainerFile(uuidString string) (string, string, error) {
 
 	if err != nil {
 		return "", timeUuid, err
+	}
+	if id.Version() == 1 {
+		sec, nsec := id.Time().UnixTime()
+		timestamp := time.Unix(sec, nsec).UTC()
+		
+		idString := timestamp.Format("200601021504")
+		return "files/" + idString[0:4] + "/" + idString[4:6] + "/" + idString[6:8] + "/" + idString[8:10] + "/" + timeUuid[4:6] + ".tar", timeUuid, err
 	}
 
 	if id.Version() != 4 {
@@ -439,6 +446,17 @@ func uuidhello(w http.ResponseWriter, req *http.Request) {
 		w.Write(jData)
 	}
 }
+func uuidv1hello(w http.ResponseWriter, req *http.Request) {
+	uuidv1,_  := uuid.NewUUID()
+	idString := uuidv1.String()
+	containerFile, idString, _ := getContainerFile(idString)
+	myuuid := &MyUUID{Uuid: idString, ContainerFile: containerFile}
+	jData, err := json.Marshal(myuuid)
+	if err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(jData)
+	}
+}
 
 func FileView(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -499,7 +517,7 @@ func InitServer() *mux.Router {
 	r.PathPrefix("/static/").Handler(FileView(staticfs))
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-
+/*
 		authorization := r.Header.Get("Authorization")
 
 		fmt.Println(authorization)
@@ -507,7 +525,7 @@ func InitServer() *mux.Router {
 		fmt.Println(r)
 		for k, v := range r.Header {
 			fmt.Printf("%v: %v\n", k, v)
-		}
+		}*/
 		http.ServeFile(w, r, "/static/index.html")
 	})
 	r.HandleFunc("/data2/", func(w http.ResponseWriter, r *http.Request) {
@@ -523,6 +541,7 @@ func InitServer() *mux.Router {
 	})
 
 	r.HandleFunc("/uuid", uuidhello)
+	r.HandleFunc("/uuidv1", uuidv1hello)
 	r.HandleFunc("/data/", s3Bucket)
 	r.HandleFunc("/data/{id}", s3Put)
 	r.HandleFunc("/upload", uploadFile)
@@ -567,6 +586,6 @@ func main() {
 		certmagic.DefaultACME.CA = config.Settings.Get(config.ACME_SERVER)
 		log.Fatal(certmagic.HTTPS([]string{config.Settings.Get(config.SERVER_DOMAIN)}, r))
 	} else {
-		http.ListenAndServe(":8000", r)
+		http.ListenAndServe(":"+config.Settings.Get(config.SERVER_PORT), r)
 	}
 }
