@@ -25,3 +25,5 @@ Cons
 Ongoing work
 - Blob encryption
 - Blob metadata
+- Swift storage
+- Multiple variants of same file
