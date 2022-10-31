@@ -21,6 +21,7 @@ Pros
 - Build in ACME support.
 - Support UUID version 4 with human readable timestamp(`YYYYMMDD-HHMM`) in the first two sections.
 - Support UUID version 1 according to RFC 4122
+- Built-in web-GUI with support for uploading/downloading and browsing files on disk
 
 Cons
 - Not possible to delete or overwrite single blob, it must age-off. (Data is frozen within the glacier)
