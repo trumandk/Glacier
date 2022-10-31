@@ -280,12 +280,16 @@ func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 
 	tw := tar.NewWriter(f)
 
+	metadata := make(map[string]string)
+
+	//metadata["test"] = "test"
 	if !doCompress {
 		hdr := &tar.Header{
 			Name:   uuid_id,
 			Size:   int64(len(fileBytes)),
 			Format: tar.FormatPAX,
 			Uname:  id,
+			PAXRecords: metadata,
 			Gname:  mtype.String(),
 		}
 
@@ -308,6 +312,7 @@ func sharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 			Format: tar.FormatPAX,
 			Uname:  id,
 			Gname:  mtype.String(),
+			PAXRecords: metadata,
 			Mode:   1, //Define we use compression
 		}
 
@@ -476,7 +481,7 @@ func FileView(next http.Handler) http.Handler {
 
 		tr := tar.NewReader(tarFile)
 		fmt.Fprintf(w, "<html><head><link href=../../../../../static/bootstrap.css rel=stylesheet></head>")
-		fmt.Fprintf(w, "<table class=\"table table-hover\"><tr><th>ID</th><th>Name</th><th>GzipSize</th><th>RealSize</th><th>GzipRatio</th><th>Filename</th><th>MimeType</th><th>Compressed</th><tr>")
+		fmt.Fprintf(w, "<table class=\"table table-hover\"><tr><th>ID</th><th>Name</th><th>GzipSize</th><th>RealSize</th><th>GzipRatio</th><th>Filename</th><th>MimeType</th><th>Compressed</th><th>Metadata</th><tr>")
 		for {
 			hdr, err := tr.Next()
 			if err == io.EOF {
@@ -487,7 +492,8 @@ func FileView(next http.Handler) http.Handler {
 				fmt.Fprintln(w, "open tar file failed", err)
 				break
 			}
-			fmt.Fprintf(w, "<tr><td>%d</td><td><a href=..\\..\\..\\..\\..\\get\\%v>%v</a></td><td>%d</td><td>%d</td><td>%.2f</td><td>%v</td><td>%v</td><td>%v</td<<tr>", count, hdr.Name, hdr.Name, hdr.Size, hdr.Uid, (float64)((float64)(hdr.Size)/(float64)(hdr.Uid)), hdr.Uname, hdr.Gname, hdr.Mode)
+			metadata, _ := json.Marshal(hdr.PAXRecords)
+			fmt.Fprintf(w, "<tr><td>%d</td><td><a href=..\\..\\..\\..\\..\\get\\%v>%v</a></td><td>%d</td><td>%d</td><td>%.2f</td><td>%v</td><td>%v</td><td>%v</td><td>%v</td><tr>", count, hdr.Name, hdr.Name, hdr.Size, hdr.Uid, (float64)((float64)(hdr.Size)/(float64)(hdr.Uid)), hdr.Uname, hdr.Gname, hdr.Mode, string(metadata))
 			count = count + 1
 		}
 		fmt.Fprintf(w, "</table>")
