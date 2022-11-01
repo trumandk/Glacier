@@ -16,7 +16,7 @@ Pros
 - The number of files on disk is always known(maximum 256 Tar archives per hour)
 - High delete performance, for aging-out(deletion) of old data
 - Automatic age-off oldest data when storage limit is reached
-- S3 support (Version 2 only)
+- S3 support (Version 2) with one bucket "data"
 - Build in prometheus support.
 - Build in ACME support.
 - Support UUID version 4 with human readable timestamp(`YYYYMMDD-HHMM`) in the first two sections.
