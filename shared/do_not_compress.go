@@ -1,4 +1,4 @@
-package main
+package shared
 
 var DO_NOT_COMPRESS = map[string]bool{
 	".xz":   true,
