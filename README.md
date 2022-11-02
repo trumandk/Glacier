@@ -48,25 +48,26 @@ GET /get/[[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}]
 ## Example Multipart Upload with multiple files
 ```
 POST /upload HTTP/1.1
-Content-Type: multipart/form-data; boundary=---------------------------147481828932309445362774481004
------------------------------147481828932309445362774481004
-Content-Disposition: form-data; name="file"; filename="a.txt"
-Content-Type: text/plain
+Content-Type: multipart/form-data; boundary=---------------------------273754160213256655563977755994
+
+-----------------------------273754160213256655563977755994
+Content-Disposition: form-data; name="file"; filename="20221102-1326-4897-aeed-aaaaaaaaaaaa"
+Content-Type: application/octet-stream
 
 test
 
------------------------------147481828932309445362774481004
-Content-Disposition: form-data; name="file"; filename="b.txt"
-Content-Type: text/plain
+-----------------------------273754160213256655563977755994
+Content-Disposition: form-data; name="file"; filename="20221102-1326-4897-aeed-bbbbbbbbbbbb"
+Content-Type: application/octet-stream
 
 test
 
------------------------------147481828932309445362774481004
-Content-Disposition: form-data; name="file"; filename="c.txt"
-Content-Type: text/plain
+-----------------------------273754160213256655563977755994
+Content-Disposition: form-data; name="file"; filename="20221102-1326-4897-aeed-cccccccccccc"
+Content-Type: application/octet-stream
 
 test
 
------------------------------147481828932309445362774481004--
+-----------------------------273754160213256655563977755994--
 ```
 
