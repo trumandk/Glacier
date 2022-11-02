@@ -23,7 +23,7 @@ Pros
 - Support UUID version 4 with human readable timestamp(`YYYYMMDD-HHMM`) in the first two sections.
 - Support UUID version 1 according to RFC 4122
 - Built-in web-GUI with support for uploading/downloading and browsing files on disk
-- Support HTTP Raw-Upload and Http-Multipart with multiple files
+- Support HTTP Raw-Upload and HTTP-Multipart with multiple files
 
 Cons
 - Not possible to delete or overwrite single blob, it must age-off. (Data is frozen within the glacier)
@@ -34,3 +34,34 @@ Ongoing work
 - Blob metadata
 - Swift storage
 - Multiple variants of same file
+
+Example RawUpload
+```
+POST /rawupload/[[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}]
+```
+
+Example Multipart Upload with multiple files
+```
+POST /upload HTTP/1.1
+Content-Type: multipart/form-data; boundary=---------------------------147481828932309445362774481004
+-----------------------------147481828932309445362774481004
+Content-Disposition: form-data; name="file"; filename="a.txt"
+Content-Type: text/plain
+
+test
+
+-----------------------------147481828932309445362774481004
+Content-Disposition: form-data; name="file"; filename="b.txt"
+Content-Type: text/plain
+
+test
+
+-----------------------------147481828932309445362774481004
+Content-Disposition: form-data; name="file"; filename="c.txt"
+Content-Type: text/plain
+
+test
+
+-----------------------------147481828932309445362774481004--
+```
+
