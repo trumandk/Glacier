@@ -329,3 +329,10 @@ func SharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 	//	fmt.Fprintf(w, "<html><a href=get/%v>%v</a> <br><a href=%v>%v</a>", id, id, containerFile, containerFile)
 	return id, containerFile
 }
+
+func GenerateTimeUUID() string {
+	id, _ := uuid.NewRandom()
+	timeStamp := time.Now()
+	idString := timeStamp.Format("20060102-1504") + id.String()[13:]
+	return idString
+}

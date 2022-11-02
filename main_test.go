@@ -3,21 +3,23 @@ package main
 import (
 	"bytes"
 	"context"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
+	"glacier/shared"
 	"io"
 	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net/http"
 	"testing"
+
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 func TestS3(t *testing.T) {
 	endpoint := "localhost"
 	accessKeyID := "aaaaaaaaaaaaaaaaaaaa"
 	secretAccessKey := "sssssssssssssssssssssssssssssssssssssssssss"
-	test_uuid := GenerateTimeUUID()
+	test_uuid := shared.GenerateTimeUUID()
 	useSSL := false
 
 	r := InitServer()
@@ -55,7 +57,7 @@ func TestS3(t *testing.T) {
 }
 
 func TestServer(t *testing.T) {
-	test_uuid := GenerateTimeUUID()
+	test_uuid := shared.GenerateTimeUUID()
 	data := []byte("this is some data stored as a byte slice in Go Lang!")
 	r := InitServer()
 	go http.ListenAndServe(":8000", r)

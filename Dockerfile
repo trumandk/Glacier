@@ -12,6 +12,7 @@ COPY prometheus/ prometheus/
 COPY main_test.go main_test.go
 COPY main.go main.go
 COPY s3/ s3/
+COPY gui/ gui/
 COPY shared/ shared/
 RUN CGO_ENABLED=0 go test
 RUN CGO_ENABLED=0 go build -o /main
