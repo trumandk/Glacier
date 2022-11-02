@@ -196,7 +196,13 @@ func GetFile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func SharedUpload(wa http.ResponseWriter, r *http.Request, id string, fileBytes []byte) (string, string, error) {
+func SharedUpload(r *http.Request, token string, id string, fileBytes []byte) (string, string, error) {
+
+	if config.Settings.Has(config.WRITE_TOKEN) && token != config.Settings.Get(config.WRITE_TOKEN) {
+
+		return "", "", fmt.Errorf("Access denied")
+	}
+
 	containerFile, uuid_id, err := GetContainerFile(id)
 	if err != nil {
 		fmt.Println(err)

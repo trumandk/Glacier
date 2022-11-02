@@ -8,3 +8,4 @@ services:
     environment:
       DISK_USAGE_ALLOWED: 99
       READ_TOKEN: aaaa
+      WRITE_TOKEN: bbbb

@@ -30,6 +30,16 @@ func rawUpload(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		fmt.Println("id is missing in parameters")
 	}
+	token, ok := vars["token"]
+	if !ok {
+		fmt.Println("token is missing in parameters")
+	}
+	fmt.Println(token)
+	if config.Settings.Has(config.WRITE_TOKEN) && token != config.Settings.Get(config.WRITE_TOKEN) {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintln(w, "Access forbidden")
+		return
+	}
 	fileBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -37,7 +47,7 @@ func rawUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
-	id, containerFile, err := shared.SharedUpload(w, r, id, fileBytes)
+	id, containerFile, err := shared.SharedUpload(r, token, id, fileBytes)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintln(w, err)
@@ -49,6 +59,13 @@ func rawUpload(w http.ResponseWriter, r *http.Request) {
 func uploadFile(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	r.ParseMultipartForm(10 << 30)
+	tokenList := r.MultipartForm.Value["token"]
+	token := ""
+	if len(tokenList) > 0 {
+		token = tokenList[0]
+	}
+	fmt.Println(token)
+
 	files := r.MultipartForm.File["file"]
 	savedList := make(map[string]string)
 	for _, fileHeader := range files {
@@ -75,11 +92,12 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, err)
 			return
 		}
-		id, containerFile, err := shared.SharedUpload(w, r, fileUUID, fileBytes)
+		id, containerFile, err := shared.SharedUpload(r, token, fileUUID, fileBytes)
 		savedList[id] = containerFile
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintln(w, err)
+			return
 		}
 	}
 	if len(savedList) > 0 {
@@ -130,13 +148,14 @@ func InitServer() *mux.Router {
 	r.HandleFunc("/uuid", gui.Uuidhello)
 	r.HandleFunc("/uuidv1", gui.Uuidv1hello)
 	r.HandleFunc("/data/", s3.S3Bucket)
-	r.HandleFunc("/data/{id}", s3.S3Put)
 	r.HandleFunc("/upload", uploadFile)
 	r.HandleFunc("/rawupload/{id}", rawUpload)
+	r.HandleFunc("/rawupload/{token}/{id}", rawUpload)
 	r.HandleFunc("/get/{id}", shared.GetFile)
 	r.HandleFunc("/get/{token}/{id}", shared.GetFile)
 	r.HandleFunc("/redirect", gui.Redirect)
-
+	r.HandleFunc("/data/{id}", s3.S3Put)
+	r.HandleFunc("/{token}/{id}", s3.S3Put)
 	r.Handle("/metrics", promhttp.Handler())
 	return r
 }

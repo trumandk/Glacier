@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/xml"
 	"fmt"
+	"glacier/config"
 	"glacier/prometheus"
 	"glacier/shared"
 	"io/ioutil"
@@ -64,7 +65,24 @@ func S3Put(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			defer r.Body.Close()
-			shared.SharedUpload(w, r, id, fileBytes)
+
+			token, ok := vars["token"]
+			if !ok {
+				fmt.Println("token is missing in parameters")
+			}
+			fmt.Println(token)
+			if config.Settings.Has(config.WRITE_TOKEN) && token != config.Settings.Get(config.WRITE_TOKEN) {
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprintln(w, "Access forbidden")
+				return
+			}
+
+			_, _, err = shared.SharedUpload(r, token, id, fileBytes)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				fmt.Fprintln(w, err)
+				return
+			}
 			hash := md5.Sum(fileBytes)
 			w.Header().Set("ETag", `"`+hex.EncodeToString(hash[:])+`"`)
 		}

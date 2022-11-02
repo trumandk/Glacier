@@ -34,6 +34,7 @@
     <div>
       <form enctype="multipart/form-data" action="./upload" method="post">
         <div class="form-group">
+          <input type="text" name="token" placeholder=token />
           <input type="file" name="file" multiple/>
           <input type="submit" value="upload" class="btn btn-primary" />
       </form>
@@ -45,6 +46,7 @@
     <h3>Upload without uuid filename(Test only)</h3>
     <form enctype="multipart/form-data" action="./upload?newuuid=true" method="post">
       <div class="form-group">
+          <input type="text" name="token" placeholder=token />
         <input type="file" name="file" multiple/>
         <input type="submit" value="upload" class="btn btn-primary" />
       </div>
