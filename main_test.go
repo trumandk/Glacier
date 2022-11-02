@@ -65,7 +65,7 @@ func TestServer(t *testing.T) {
 	bodyBuf := &bytes.Buffer{}
 	bodyWriter := multipart.NewWriter(bodyBuf)
 
-	fileWriter, err := bodyWriter.CreateFormFile("myFile", test_uuid)
+	fileWriter, err := bodyWriter.CreateFormFile("file", test_uuid)
 	if err != nil {
 		t.Fatalf("Panic error writing to buffer")
 	}

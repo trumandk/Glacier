@@ -41,7 +41,7 @@ func Uuidv1hello(w http.ResponseWriter, req *http.Request) {
 }
 
 func Redirect(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("myFile")
+	id := r.URL.Query().Get("file")
 	if id != "" {
 		http.Redirect(w, r, "get/"+id, http.StatusSeeOther)
 		return

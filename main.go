@@ -37,36 +37,59 @@ func rawUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
-	id, containerFile := shared.SharedUpload(w, r, id, fileBytes)
+	id, containerFile, err := shared.SharedUpload(w, r, id, fileBytes)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintln(w, err)
+	}
+	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "<html><a href=get/%v>%v</a> <br><a href=%v>%v</a>", id, id, containerFile, containerFile)
-
 }
 
 func uploadFile(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	r.ParseMultipartForm(10 << 30)
-	file, handler, err := r.FormFile("myFile")
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintln(w, "Error Retrieving the File")
-		fmt.Fprintln(w, err)
-		fmt.Println("Error Retrieving the File", err)
-		return
+	files := r.MultipartForm.File["file"]
+	savedList := make(map[string]string)
+	for _, fileHeader := range files {
+
+		//file, handler, err := r.FormFile("file")
+		file, err := fileHeader.Open()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintln(w, "Error Retrieving the File")
+			fmt.Fprintln(w, err)
+			fmt.Println("Error Retrieving the File", err)
+			return
+		}
+		defer file.Close()
+
+		fileUUID := fileHeader.Filename
+		generateNewUUID := r.URL.Query().Get("newuuid")
+		if generateNewUUID != "" {
+			fileUUID = shared.GenerateTimeUUID()
+		}
+		fileBytes, err := ioutil.ReadAll(file)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintln(w, err)
+			return
+		}
+		id, containerFile, err := shared.SharedUpload(w, r, fileUUID, fileBytes)
+		savedList[id] = containerFile
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintln(w, err)
+		}
 	}
-	defer file.Close()
-	fileUUID := handler.Filename
-	generateNewUUID := r.URL.Query().Get("newuuid")
-	if generateNewUUID != "" {
-		fileUUID = shared.GenerateTimeUUID()
+	if len(savedList) > 0 {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "<html><table border=1><tr><th>UUID</th><th>TAR File</th></tr>")
+		for key, value := range savedList {
+			fmt.Fprintf(w, "<tr><td><a href=get/%v>%v</a></td><td><a href=%v>%v</a></td></tr>", key, key, value, value)
+		}
+		fmt.Fprintf(w, "</table>")
 	}
-	fileBytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintln(w, err)
-		return
-	}
-	id, containerFile := shared.SharedUpload(w, r, fileUUID, fileBytes)
-	fmt.Fprintf(w, "<html><a href=get/%v>%v</a> <br><a href=%v>%v</a>", id, id, containerFile, containerFile)
 }
 
 func InitServer() *mux.Router {

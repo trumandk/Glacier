@@ -34,7 +34,7 @@
     <div>
       <form enctype="multipart/form-data" action="./upload" method="post">
         <div class="form-group">
-          <input type="file" name="myFile" />
+          <input type="file" name="file" multiple/>
           <input type="submit" value="upload" class="btn btn-primary" />
       </form>
     </div>
@@ -45,7 +45,7 @@
     <h3>Upload without uuid filename(Test only)</h3>
     <form enctype="multipart/form-data" action="./upload?newuuid=true" method="post">
       <div class="form-group">
-        <input type="file" name="myFile" />
+        <input type="file" name="file" multiple/>
         <input type="submit" value="upload" class="btn btn-primary" />
       </div>
   </div>
@@ -56,7 +56,7 @@
     <h3>Download file url</h3>
     <form action="./redirect" target="_blank" method="get">
       <div class="form-group">
-        <input type="text" name="myFile" size=40 />
+        <input type="text" name="file" size=40 />
         <input type="submit" value="Download" class="btn btn-primary" />
     </form>
     <xmp>
@@ -71,7 +71,7 @@
     Filename must contain a time-uuid
     <xmp>
       <form action="/upload" method="post">
-        <input type="file" name="myFile" />
+        <input type="file" name="file" />
         <input type="submit" value="upload" />
       </form>
     </xmp>

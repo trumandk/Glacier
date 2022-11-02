@@ -23,6 +23,7 @@ Pros
 - Support UUID version 4 with human readable timestamp(`YYYYMMDD-HHMM`) in the first two sections.
 - Support UUID version 1 according to RFC 4122
 - Built-in web-GUI with support for uploading/downloading and browsing files on disk
+- Support HTTP Raw-Upload and Http-Multipart with multiple files
 
 Cons
 - Not possible to delete or overwrite single blob, it must age-off. (Data is frozen within the glacier)

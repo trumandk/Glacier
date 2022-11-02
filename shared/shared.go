@@ -186,29 +186,24 @@ func GetFile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func SharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes []byte) (string, string) {
+func SharedUpload(wa http.ResponseWriter, r *http.Request, id string, fileBytes []byte) (string, string, error) {
 	containerFile, uuid_id, err := GetContainerFile(id)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintln(w, err)
 		fmt.Println(err)
-		return "", ""
+		return "", "", err
 	}
 	containerPath := filepath.Dir(containerFile)
 
 	err = os.MkdirAll(containerPath, 0700)
 
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Println(err)
-		return "", ""
+		return "", "", err
 	}
 
 	if len(fileBytes) == 0 {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintln(w, "FileSize==0")
 		fmt.Println("FileSize==0")
-		return "", ""
+		return "", "", err
 	}
 	mtype := mimetype.Detect(fileBytes)
 	doCompress := false
@@ -228,30 +223,22 @@ func SharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 
 		_, err = gw.Write(fileBytes)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, err)
-			return "", ""
+			return "", "", err
 		}
 		if err := gw.Close(); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, err)
-			fmt.Println("compress close failed:", err)
-			return "", ""
+			return "", "", err
 		}
 	}
 
 	fileLock := flock.New(containerFile)
 	locked, err := fileLock.TryLockContext(ctx, 500*time.Millisecond)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintln(w, err)
 		fmt.Println("lock timeout:", err)
-		return "", ""
+		return "", "", err
 	}
 	if !locked {
-		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Println("file not locked:")
-		return "", ""
+		return "", "", err
 	}
 	defer fileLock.Unlock()
 
@@ -260,16 +247,12 @@ func SharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 
 	f, err := os.OpenFile(containerFile, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintln(w, err)
-		return "", ""
+		return "", "", err
 	}
 	defer f.Close()
 	fi, err := f.Stat()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintln(w, err)
-		return "", ""
+		return "", "", err
 	}
 	if fi.Size() > 0 {
 		if _, err = f.Seek(-2<<9, os.SEEK_END); err != nil {
@@ -293,15 +276,11 @@ func SharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 		}
 
 		if err := tw.WriteHeader(hdr); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, err)
-			return "", ""
+			return "", "", err
 		}
 
 		if _, err := tw.Write(fileBytes); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, err)
-			return "", ""
+			return "", "", err
 		}
 	} else {
 		hdr := &tar.Header{
@@ -316,26 +295,19 @@ func SharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 		}
 
 		if err := tw.WriteHeader(hdr); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, err)
-			return "", ""
+			return "", "", err
 		}
 		if _, err := io.Copy(tw, &output); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, err)
-			return "", ""
+			return "", "", err
 		}
 	}
 
 	if err := tw.Close(); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintln(w, err)
-		return "", ""
+		return "", "", err
 	}
-	w.WriteHeader(http.StatusOK)
 	prometheus.RawUploadDoneProcessed.Inc()
 	//	fmt.Fprintf(w, "<html><a href=get/%v>%v</a> <br><a href=%v>%v</a>", id, id, containerFile, containerFile)
-	return id, containerFile
+	return id, containerFile, nil
 }
 
 func GenerateTimeUUID() string {
