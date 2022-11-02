@@ -265,8 +265,16 @@ func SharedUpload(w http.ResponseWriter, r *http.Request, id string, fileBytes [
 		return "", ""
 	}
 	defer f.Close()
-	if _, err = f.Seek(-2<<9, os.SEEK_END); err != nil {
-		fmt.Println(err)
+	fi, err := f.Stat()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintln(w, err)
+		return "", ""
+	}
+	if fi.Size() > 0 {
+		if _, err = f.Seek(-2<<9, os.SEEK_END); err != nil {
+			fmt.Println(err)
+		}
 	}
 
 	tw := tar.NewWriter(f)
