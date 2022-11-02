@@ -40,6 +40,8 @@ const (
 	EXTEND_LIFE_SUPPORT = "EXTEND_LIFE_SUPPORT"
 	DATA_FOLDER = "DATA_FOLDER"
 	SERVER_PORT = "SERVER_PORT"
+	READ_TOKEN = "READ_TOKEN"
+	WRITE_TOKEN = "WRITE_TOKEN"
 )
 
 func (s *SettingsType) Init() {
@@ -49,6 +51,8 @@ func (s *SettingsType) Init() {
 	s.Set(EXTEND_LIFE_SUPPORT, "Enable extended life support","false")
 	s.Set(DATA_FOLDER, "data folder","/files")
 	s.Set(SERVER_PORT, "server tcp port","8000")
+	s.Set(READ_TOKEN, "Read TOKEN [;]","")
+	s.Set(WRITE_TOKEN, "Write TOKEN [;]","")
 
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetAutoWrapText(false)

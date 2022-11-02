@@ -7,3 +7,4 @@ services:
     - /files/:/files/
     environment:
       DISK_USAGE_ALLOWED: 99
+      READ_TOKEN: aaaa

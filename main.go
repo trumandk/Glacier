@@ -134,6 +134,7 @@ func InitServer() *mux.Router {
 	r.HandleFunc("/upload", uploadFile)
 	r.HandleFunc("/rawupload/{id}", rawUpload)
 	r.HandleFunc("/get/{id}", shared.GetFile)
+	r.HandleFunc("/get/{token}/{id}", shared.GetFile)
 	r.HandleFunc("/redirect", gui.Redirect)
 
 	r.Handle("/metrics", promhttp.Handler())

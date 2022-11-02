@@ -112,6 +112,16 @@ func GetFile(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("id is missing in parameters")
 	}
 	fmt.Println(id)
+	token, ok := vars["token"]
+	if !ok {
+		fmt.Println("token is missing in parameters")
+	}
+	fmt.Println(token)
+	if config.Settings.Has(config.READ_TOKEN) && token != config.Settings.Get(config.READ_TOKEN) {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintln(w, "Access forbidden")
+		return
+	}
 
 	containerFile, id, err := GetContainerFile(id)
 	if err != nil {
